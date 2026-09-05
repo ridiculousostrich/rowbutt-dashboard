@@ -108,21 +108,21 @@ else
     }
 
     # Download agent package files individually
-    download_file "$RAW_BASE/agent/__init__.py"     "$AGENT_FILES/agent/__init__.py" || true
-    download_file "$RAW_BASE/agent/server.py"       "$AGENT_FILES/agent/server.py" || true
-    download_file "$RAW_BASE/agent/agent.py"        "$AGENT_FILES/agent/agent.py" || true
-    download_file "$RAW_BASE/agent/__main__.py"     "$AGENT_FILES/agent/__main__.py" || true
-    download_file "$RAW_BASE/cli/main.py"           "$AGENT_FILES/cli/main.py" || true
-    download_file "$RAW_BASE/cli/commands.py"       "$AGENT_FILES/cli/commands.py" || true
-    download_file "$RAW_BASE/cli/__init__.py"       "$AGENT_FILES/cli/__init__.py" || true
-    download_file "$RAW_BASE/config/defaults.py"    "$AGENT_FILES/config/defaults.py" || true
-    download_file "$RAW_BASE/config/__init__.py"    "$AGENT_FILES/config/__init__.py" || true
-    download_file "$RAW_BASE/db/schema.sql"         "$AGENT_FILES/db/schema.sql" || true
-    download_file "$RAW_BASE/db/__init__.py"        "$AGENT_FILES/db/__init__.py" || true
-    download_file "$RAW_BASE/pyproject.toml"        "$AGENT_FILES/pyproject.toml" || true
-    download_file "$RAW_BASE/requirements.txt"      "$AGENT_FILES/requirements.txt" || true
-    download_file "$RAW_BASE/deploy/rowbutt-agent.service" "$AGENT_FILES/deploy/rowbutt-agent.service" || true
-    download_file "$RAW_BASE/deploy/start-agent.sh"       "$AGENT_FILES/deploy/start-agent.sh" || true
+    download_file "$RAW_BASE/agent/__init__.py"               "$AGENT_FILES/agent/__init__.py" || true
+    download_file "$RAW_BASE/agent/cli.py"                    "$AGENT_FILES/agent/cli.py" || true
+    download_file "$RAW_BASE/agent/scheduler.py"              "$AGENT_FILES/agent/scheduler.py" || true
+    download_file "$RAW_BASE/agent/server.py"                 "$AGENT_FILES/agent/server.py" || true
+    download_file "$RAW_BASE/cli/main.py"                     "$AGENT_FILES/cli/main.py" || true
+    download_file "$RAW_BASE/cli/commands.py"                 "$AGENT_FILES/cli/commands.py" || true
+    download_file "$RAW_BASE/config/defaults.py"              "$AGENT_FILES/config/defaults.py" || true
+    download_file "$RAW_BASE/db/db_common.py"                 "$AGENT_FILES/db/db_common.py" || true
+    download_file "$RAW_BASE/db/migrations.py"                "$AGENT_FILES/db/migrations.py" || true
+    download_file "$RAW_BASE/db/schema_agent.sql"             "$AGENT_FILES/db/schema_agent.sql" || true
+    download_file "$RAW_BASE/db/schema_aggregator.sql"        "$AGENT_FILES/db/schema_aggregator.sql" || true
+    download_file "$RAW_BASE/pyproject.toml"                  "$AGENT_FILES/pyproject.toml" || true
+    download_file "$RAW_BASE/requirements.txt"                "$AGENT_FILES/requirements.txt" || true
+    download_file "$RAW_BASE/deploy/rowbutt-agent.service"    "$AGENT_FILES/deploy/rowbutt-agent.service" || true
+    download_file "$RAW_BASE/deploy/start-agent.sh"           "$AGENT_FILES/deploy/start-agent.sh" || true
 
     # Download agent/collectors/
     mkdir -p "$AGENT_FILES/agent/collectors"
@@ -182,14 +182,14 @@ info "Creating virtual environment"
 python3 -m venv --clear "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 
-cmd "pip install --quiet --upgrade pip"
-pip install --quiet --upgrade pip 2>/dev/null
+cmd "pip install --upgrade pip"
+pip install --upgrade pip 2>/dev/null
 
-cmd "pip install --quiet -r $AGENT_DIR/requirements.txt"
-pip install --quiet -r "$AGENT_DIR/requirements.txt"
+cmd "pip install -r $AGENT_DIR/requirements.txt"
+pip install -r "$AGENT_DIR/requirements.txt"
 
-cmd "pip install --quiet -e $AGENT_DIR"
-pip install --quiet -e "$AGENT_DIR"
+cmd "pip install -e $AGENT_DIR"
+pip install -e "$AGENT_DIR"
 
 # Verify the CLI entry point is available
 if ! "$VENV_DIR/bin/rowbutt" --help &>/dev/null; then
