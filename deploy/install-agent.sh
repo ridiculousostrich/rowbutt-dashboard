@@ -38,7 +38,7 @@ SYSTEMD_DIR="$HOME/.config/systemd/user"
 
 # ── Detect mode ───────────────────────────────────────────────────────────
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd)"
 
 LOCAL_MODE=false
 if [[ -d "$SCRIPT_DIR/../agent" ]] && [[ -f "$SCRIPT_DIR/../pyproject.toml" ]]; then
@@ -191,7 +191,12 @@ if [[ -f "$AGENT_DIR/deploy/rowbutt-agent.service" ]]; then
     cp "$AGENT_DIR/deploy/rowbutt-agent.service" "$SYSTEMD_DIR/rowbutt-agent.service"
 
     if command -v systemctl &>/dev/null; then
-        systemctl --user daemon-reload 2>/dev/null || true
+        # Ensure a user systemd session exists (needed on headless/SSH machines)
+        if ! systemctl --user daemon-reload &>/dev/null; then
+            warn "No user systemd bus found — enabling lingering session"
+            loginctl enable-linger "$USER" 2>/dev/null || true
+            systemctl --user daemon-reload 2>/dev/null || true
+        fi
         ok "systemd unit installed: $SYSTEMD_DIR/rowbutt-agent.service"
     else
         ok "systemd unit copied (systemctl not available — will need manual start)"
@@ -204,17 +209,25 @@ fi
 
 info "Starting the agent"
 
+AGENT_CMD="$VENV_DIR/bin/rowbutt agent start --host 0.0.0.0 --port 5000"
+STARTED=false
+
 if command -v systemctl &>/dev/null; then
     if systemctl --user enable --now rowbutt-agent.service &>/dev/null; then
         ok "Agent started via systemd"
         systemctl --user status rowbutt-agent.service --no-pager 2>&1 | head -5
-    else
-        warn "systemd enable failed — starting in foreground as fallback"
-        warn "Run manually: $VENV_DIR/bin/rowbutt agent start --host 0.0.0.0 --port 5000"
+        STARTED=true
     fi
-else
-    warn "systemctl not available. Start the agent manually:"
-    cmd "$VENV_DIR/bin/rowbutt agent start"
+fi
+
+if ! $STARTED; then
+    warn "systemd not available — starting agent directly"
+    warn "Agent running in background. Check logs at ~/.rowbutt/agent.log"
+    nohup "$VENV_DIR/bin/rowbutt" agent start --host 0.0.0.0 --port 5000 \
+        > "$HOME/.rowbutt/agent.log" 2>&1 &
+    echo "$!" > "$HOME/.rowbutt/agent.pid"
+    echo "  PID: $(cat "$HOME/.rowbutt/agent.pid")"
+    ok "Agent started in background (PID: $(cat "$HOME/.rowbutt/agent.pid"))"
 fi
 
 # ── 9. Summary ─────────────────────────────────────────────────────────────
