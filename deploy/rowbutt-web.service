@@ -1,0 +1,18 @@
+[Unit]
+Description=Rowbutt Web UI — LLM cost report dashboard
+Documentation=https://github.com/ridiculousostrich/rowbutt-dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.rowbutt
+ExecStart=%h/.rowbutt/venv/bin/rowbutt web start --host 0.0.0.0 --port 8123
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

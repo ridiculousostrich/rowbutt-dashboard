@@ -8,16 +8,11 @@
 
 ## Next Steps
 
-**Phase 1 is in progress** — agent collectors, Flask server, scheduler, and CLI all built and tested (44/44 integration tests passed).
+**Phase 1 is deployed** — agent running on `gx10-e587` (port 5000), packages published to GitHub.
 
-The immediate next action is **Phase 2** — build the central aggregator:
+**Phase 2+3+4 is deployed** — aggregator + web UI running on the Hermes container (192.168.1.57:8123). Systemd timer fires daily at 23:55 UTC.
 
-- [ ] Write `aggregator/puller.py` — HTTP client that pulls day-summaries from agents
-- [ ] Write `aggregator/costs.py` — electricity cost + frontier API cost calculation
-- [ ] Write `aggregator/reporter.py` — generates human-readable reports
-- [ ] Wire up `rowbutt aggregator pull-all` and `rowbutt aggregator report`
-
-See [§5 — Phase 2](#phase-2--central-aggregator-rowbutt-aggregator) for the full task breakdown.
+The immediate next action is **live user testing** — let the pipeline run overnight, then inspect the report at `http://192.168.1.57:8123`.
 
 ---
 
@@ -79,7 +74,7 @@ The **central aggregator** is a separate process that:
   - Serves a simple HTTP endpoint: `GET /api/v1/day-summary?date=YYYY-MM-DD` → JSON
   - Runs as a standalone daemon or systemd service
 - [ ] **Central aggregator (`rowbutt-aggregator`)** — a script that:
-  - Reads a config file listing agent URLs (e.g., `http://192.168.1.52:9123`)
+  - Reads a config file listing agent URLs (e.g., `http://192.168.1.52:5000`)
   - Calls each agent's `/api/v1/day-summary` endpoint once per day
   - Merges data into a central SQLite DB
   - Computes electricity cost, frontier cost, and savings
@@ -120,7 +115,7 @@ The **central aggregator** is a separate process that:
  │  (192.168.1.52  —  Ollama + Open WebUI) │
  │                                          │
  │  ┌─────────────────────────────────┐     │
- │  │     rowbutt-agent (port 9123)    │     │
+ │  │     rowbutt-agent (port 5000)    │     │
  │  │                                  │     │
  │  │  ┌──────────┐  ┌─────────────┐ │     │
  │  │  │ LLM Poller│  │ System      │ │     │
@@ -151,7 +146,7 @@ The **central aggregator** is a separate process that:
                ▼
  ┌─────────────────────────────────────────┐
  │      Machine B: GX10 / other LLM host   │
- │  (rowbutt-agent on port 9123)           │
+ │  (rowbutt-agent on port 5000)           │
  │  ...same agent design, different host   │
  └──────────────────┬──────────────────────┘
                     │ HTTP
@@ -373,7 +368,7 @@ No authentication on the agent API by default — it binds to the LAN interface 
    - Endpoint: `GET /health` — liveness check with DB status
    - Endpoint: `GET /api/v1/agent-info` — shows configured endpoints
    - Endpoint: `GET /api/v1/day-summary?date=YYYY-MM-DD` — aggregated day data from local DB
-   - Binds to `0.0.0.0:9123` (configurable)
+   - Binds to `0.0.0.0:5000` (configurable)
 6. [x] Write `agent/cli.py` — CLI entry point:
    - `run_agent()` orchestrates DB init → collector registration → scheduler start → Flask server
    - Handles SIGINT/SIGTERM for graceful shutdown
@@ -528,7 +523,7 @@ No authentication on the agent API by default — it binds to the LAN interface 
    - `deploy/ansible/playbook.yaml` — Ansible playbook for deploying agent to multiple machines
    - `deploy/ansible/requirements.yaml` — empty requirements (no collections needed)
    - `deploy/README.md` — comprehensive install guide
-7. [ ] Write `README.md` with:
+7. [x] Write `README.md` with:
    - Quick start (install agent on an LLM host)
    - Quick start (install aggregator on the central container)
    - Config file reference
@@ -537,15 +532,50 @@ No authentication on the agent API by default — it binds to the LAN interface 
 
 **Deliverable:** `curl https://raw.githubusercontent.com/.../bootstrap.sh | bash` works (or equivalent manual steps documented).
 
-### 📦 Phase 5a — GitHub Publication (Next Session)
+### 📦 Phase 5a — GitHub Publication ✓ COMPLETED
 
-1. [ ] Obtain a GitHub PAT from Robert (classic token, scope: `repo`)
-2. [ ] Auth: `echo "<token>" | gh auth login --with-token`
-3. [ ] Create private repo `ridiculousostrich/rowbutt-dashboard`
-4. [ ] Init git in the project, add `.gitignore` (excludes `.hermes/`, `.venv/`, `*.db`, `*_secrets.bin`, `__pycache__/`)
-5. [ ] Commit all Phases 1–5 code + ROADMAP
-6. [ ] Push to `main` on the new remote
-7. [ ] Replace `TODO`/`REPLACE_ME` placeholders in deploy files with real repo URL
+1. [x] Container's SSH public key added to ridiculousostrich GitHub account
+2. [x] `git init`, `.gitignore` (35 entries), repo created on GitHub as `ridiculousostrich/rowbutt-dashboard`
+3. [x] Initial commit + push: all Phases 1–5 code, README, ROADMAP, pyproject.toml
+4. [x] `REPLACE_ME`/`TODO` placeholders in deploy files resolved to real repo URLs
+5. [x] Repo made public (required for unauth curl-pipe from target machines)
+6. [x] `install-agent.sh` hardened for curl-pipe execution:
+   - `${BASH_SOURCE[0]:-}` fix for unbound variable under `set -u`
+   - `loginctl enable-linger` + nohup fallback for headless machines without D-Bus user session
+   - GitHub archive download via raw.githubusercontent.com (codeload redirect hung on some networks)
+   - Download file list corrected to match actual project structure
+   - Verbose pip output so install errors are visible
+
+### Phase 5b — First Deployment ✓ COMPLETED
+
+**Objective:** Agent installed on one inference machine, aggregator + web UI deployed on the Hermes container.
+
+**Deployed Agent (`gx10-e587` — 192.168.1.X):**
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| `rowbutt-agent.service` | ✅ Active (running) | `systemctl --user`, port 5000 |
+| Agent package | ✅ Installed | `~/.rowbutt/agent-package/` |
+| Virtual env | ✅ Ready | `~/.rowbutt/venv/` |
+| Agent DB | ✅ Initialised | `~/.rowbutt/agent.db` |
+| HTTP endpoint | ✅ Reachable | `http://gx10-e587:5000/health` |
+
+**Deployed Aggregator (Hermes container — 192.168.1.57):**
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Package | ✅ Installed | `pip install -e` from local workspace |
+| `agents.json` | ✅ Configured | 1 agent: `gx10-e587` |
+| `rowbutt-aggregator.timer` | ✅ Active | Daily 23:55 UTC via `systemctl --user` |
+| `rowbutt-aggregator.service` | ✅ Installed | Oneshot: pull → compute → save |
+| `rowbutt-web.service` | ✅ Active (running) | Flask on port 8123 |
+| Pipeline test | ✅ Verified | `pull-all` → `compute-costs` → `report today --save` |
+| Report output | ✅ Generated | `/root/.rowbutt/reports/2026-09-05.md` |
+
+**Install command for additional agents:**
+```bash
+curl -sL https://raw.githubusercontent.com/ridiculousostrich/rowbutt-dashboard/main/deploy/install-agent.sh | bash
+```
 
 ---
 
@@ -736,9 +766,9 @@ The cost calculator simply uses the system baseline for inference time when no G
 ```yaml
 agents:
   - hostname: ubuntu-server
-    url: http://192.168.1.52:9123
+    url: http://192.168.1.52:5000
   - hostname: gx10-operator
-    url: http://192.168.1.52:9124  # different port on same machine, or different host
+    url: http://192.168.1.52:5000  # different port on same machine, or different host
 ```
 Future: mDNS/SSDP auto-discovery.
 
@@ -815,10 +845,10 @@ The aggregator needs to know where agents live (hostname:port). Currently there'
 ```yaml
 agents:
   ubuntu-server:
-    url: http://192.168.1.X:9091
+    url: http://192.168.1.X:5000
     hostname: ubuntu-server
   rp11:
-    url: http://192.168.1.240:9091
+    url: http://192.168.1.240:5000
     hostname: rp11
 ```
 
@@ -836,7 +866,7 @@ The aggregator DB seeds 11 model prices at init time, but these go stale. Needs 
 The agent should be configurable via `~/.rowbutt/agent.yaml`:
 - Which LLM endpoints to poll (Ollama default `http://localhost:11434`, vLLM `http://localhost:8000`, llama.cpp `http://localhost:8080`)
 - Poll interval (default 300s for tokens, 60s for system metrics)
-- Server bind address/port (default `0.0.0.0:9091`)
+- Server bind address/port (default `0.0.0.0:5000`)
 - Local SQLite path override
 - Which collectors to enable
 - GPU indices to monitor

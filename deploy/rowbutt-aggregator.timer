@@ -1,6 +1,6 @@
 [Unit]
 Description=Rowbutt Aggregator — Daily 23:55 trigger
-Documentation=https://github.com/rowbutt/rowbutt-dashboard
+Documentation=https://github.com/ridiculousostrich/rowbutt-dashboard
 
 [Timer]
 OnCalendar=*-*-* 23:55:00
