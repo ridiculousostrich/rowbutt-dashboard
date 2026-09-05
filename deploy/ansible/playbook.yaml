@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# ─── Rowbutt Dashboard — Ansible Playbook (multi-machine agent deploy) ──
+# Installs the Rowbutt agent on every inference host, then runs the
+# aggregator on the coordinator machine.
+#
+# Usage:
+#   ansible-playbook -i inventory.ini deploy/ansible/playbook.yaml
+#
+# Inventory example (inventory.ini):
+#   [agents]
+#   ubuntu-server ansible_host=192.168.1.52 ansible_user=root
+#   operator-1  ansible_host=192.168.1.100 ansible_user=root
+#
+#   [coordinator]
+#   ubuntu-server ansible_host=192.168.1.52 ansible_user=root
+# ──────────────────────────────────────────────────────────────────────────
+
+---
+- name: Install Rowbutt agents on inference machines
+  hosts: agents
+  gather_facts: no
+  vars:
+    rowbutt_repo: "{{ lookup('env', 'HOME') }}/Rowbutt_Dashboard"
+    venv_path: "~/.rowbutt/venv"
+
+  tasks:
+    - name: Ensure required system packages
+      apt:
+        name:
+          - python3
+          - python3-venv
+          - python3-pip
+          - git
+        state: present
+        update_cache: yes
+
+    - name: Clone or pull Rowbutt Dashboard repo
+      git:
+        repo: "{{ rowbutt_git_url | default('https://github.com/ridiculousostrich/rowbutt-dashboard.git') }}"
+        dest: "{{ rowbutt_repo }}"
+        version: main
+        force: yes
+
+    - name: Create virtual environment
+      command:
+        cmd: python3 -m venv "{{ venv_path }}"
+        creates: "{{ venv_path }}/bin/activate"
+
+    - name: Install dependencies
+      pip:
+        requirements: "{{ rowbutt_repo }}/requirements.txt"
+        virtualenv: "{{ venv_path }}"
+
+    - name: Install package in editable mode
+      pip:
+        name: "{{ rowbutt_repo }}"
+        virtualenv: "{{ venv_path }}"
+        editable: yes
+
+    - name: Create runtime directories
+      file:
+        path: "~/.rowbutt/{{ item }}"
+        state: directory
+      loop:
+        - reports
+
+    - name: Install agent systemd unit
+      copy:
+        src: "../rowbutt-agent.service"
+        dest: "~/.config/systemd/user/rowbutt-agent.service"
+      notify: reload systemd
+
+    - name: Enable agent service
+      systemd:
+        name: rowbutt-agent.service
+        scope: user
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+
+- name: Install Rowbutt aggregator on coordinator
+  hosts: coordinator
+  gather_facts: no
+  vars:
+    rowbutt_repo: "{{ lookup('env', 'HOME') }}/Rowbutt_Dashboard"
+    venv_path: "~/.rowbutt/venv"
+
+  tasks:
+    - name: Create agents.json if absent (user must populate)
+      copy:
+        content: |
+          {
+              "_comment": "Rowbutt Dashboard — agent registry.",
+              "agents": [
+                  {
+                      "hostname": "my-inference-machine",
+                      "url": "http://192.168.1.X:5000",
+                      "description": "Edit this file with your agent URLs"
+                  }
+              ]
+          }
+        dest: "~/.rowbutt/agents.json"
+        force: no
+
+    - name: Install aggregator systemd units
+      copy:
+        src: "{{ item }}"
+        dest: "~/.config/systemd/user/{{ item | basename }}"
+      loop:
+        - ../rowbutt-aggregator.service
+        - ../rowbutt-aggregator.timer
+
+    - name: Enable aggregator timer
+      systemd:
+        name: rowbutt-aggregator.timer
+        scope: user
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Enable web view systemd service (via agent-start, port 8123)
+      command:
+        cmd: "{{ venv_path }}/bin/rowbutt web start"
+      args:
+        creates: "~/.config/systemd/user/"
+      changed_when: false

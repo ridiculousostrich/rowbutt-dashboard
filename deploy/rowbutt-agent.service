@@ -1,0 +1,25 @@
+[Unit]
+Description=Rowbutt Agent — LLM cost monitoring daemon
+Documentation=https://github.com/ridiculousostrich/rowbutt-dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.rowbutt/venv/bin/rowbutt agent start --host 0.0.0.0 --port 5000
+WorkingDirectory=%h/.rowbutt
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.rowbutt
+ReadWritePaths=%h/.local/share/keyring
+
+[Install]
+WantedBy=default.target

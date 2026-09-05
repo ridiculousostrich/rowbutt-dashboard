@@ -1,0 +1,11 @@
+[Unit]
+Description=Rowbutt Aggregator — Daily 23:55 trigger
+Documentation=https://github.com/rowbutt/rowbutt-dashboard
+
+[Timer]
+OnCalendar=*-*-* 23:55:00
+Persistent=false
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

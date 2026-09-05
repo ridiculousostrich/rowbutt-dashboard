@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report — {{ report_date }} | Rowbutt Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-hover: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.6;
+    padding: 2rem 1.5rem;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  header .subtitle { color: var(--text-dim); font-size: 0.85rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .back-link { margin-bottom: 1rem; font-size: 0.85rem; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .card h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+  .card h2 {
+    font-size: 1.1rem;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+  }
+  .card h3 { font-size: 1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+  }
+  .stat .value { font-size: 1.3rem; font-weight: 600; }
+  .stat .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem; }
+  .stat .savings { color: var(--green); }
+  .stat .electricity { color: var(--orange); }
+  .stat .frontier { color: var(--accent); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+  }
+  th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:hover td { background: var(--bg-hover); }
+  p, li { color: var(--text); margin-bottom: 0.3rem; }
+  br { display: block; margin: 0.3rem 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="back-link"><a href="/">← Back to overview</a></div>
+
+  <header>
+    <h1><span>📊</span> Report — {{ report_date }}</h1>
+    <span class="subtitle">Rowbutt Dashboard</span>
+  </header>
+
+  {% if report %}
+  <div class="card">
+    <div class="stats">
+      <div class="stat">
+        <div class="value tokens">{{ "{:,.0f}".format(report.total_tokens) }}</div>
+        <div class="label">Total Tokens</div>
+      </div>
+      <div class="stat">
+        <div class="value electricity">${{ "%.4f"|format(report.total_electricity_cost) }}</div>
+        <div class="label">Electricity</div>
+      </div>
+      <div class="stat">
+        <div class="value frontier">${{ "%.2f"|format(report.total_frontier_cost) }}</div>
+        <div class="label">Frontier API</div>
+      </div>
+      <div class="stat">
+        <div class="value savings">${{ "%.2f"|format(report.total_savings) }}</div>
+        <div class="label">Savings</div>
+      </div>
+    </div>
+
+    {{ html_content|safe }}
+  </div>
+
+  <div class="back-link"><a href="/">← Back to overview</a></div>
+  {% else %}
+  <div class="card">
+    <p>No report data available for {{ report_date }}.</p>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Rowbutt Dashboard — Core Dependencies
+
+# CLI framework
+click>=8.1,<9.0
+
+# HTTP client (aggregator pulls from agents)
+httpx>=0.27,<1.0
+
+# HTTP server (agent serves API)
+Flask>=3.0,<4.0
+
+# System metrics (memory, CPU, disk, load)
+psutil>=5.9,<7.0

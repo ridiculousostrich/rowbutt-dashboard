@@ -1,0 +1,18 @@
+[Unit]
+Description=Rowbutt Aggregator — Daily LLM cost report generation
+Documentation=https://github.com/ridiculousostrich/rowbutt-dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/.rowbutt
+ExecStart=%h/.rowbutt/venv/bin/rowbutt aggregator pull-all
+ExecStart=%h/.rowbutt/venv/bin/rowbutt aggregator compute-costs
+ExecStart=%h/.rowbutt/venv/bin/rowbutt report today --save
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
