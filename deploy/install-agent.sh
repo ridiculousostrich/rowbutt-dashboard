@@ -93,43 +93,76 @@ if $LOCAL_MODE; then
     SOURCE_DIR="$TMPDIR/rowbutt-agent"
     ok "Files assembled from local repo"
 else
-    # Fetch from GitHub — extract only agent-relevant paths
+    # Fetch from GitHub — use raw.githubusercontent.com for direct file access
+    # (avoids codeload redirect which can hang on some networks)
     TMPDIR=$(mktemp -d)
+    RAW_BASE="https://raw.githubusercontent.com/ridiculousostrich/rowbutt-dashboard/main"
+    AGENT_FILES="$TMPDIR/rowbutt-agent"
+    mkdir -p "$AGENT_FILES/agent" "$AGENT_FILES/cli" "$AGENT_FILES/config" "$AGENT_FILES/db" "$AGENT_FILES/deploy"
+
     info "Downloading from $REPO_URL..."
 
-    if ! curl -sL "$REPO_URL/archive/main.tar.gz" -o "$TMPDIR/repo.tar.gz"; then
-        fail "Failed to download from $REPO_URL. Check the URL or network."
-    fi
+    download_file() {
+        local url="$1" outdir="$2"
+        curl -sSfL --connect-timeout 10 --max-time 30 "$url" -o "$outdir" 2>/dev/null
+    }
 
-    # Inspect archive to find the top-level directory name
-    TOPDIR=$(tar tzf "$TMPDIR/repo.tar.gz" 2>/dev/null | head -1 | cut -d/ -f1)
-    if [[ -z "$TOPDIR" ]]; then
-        fail "Downloaded archive is empty or corrupted."
-    fi
+    # Download agent package files individually
+    download_file "$RAW_BASE/agent/__init__.py"     "$AGENT_FILES/agent/__init__.py" || true
+    download_file "$RAW_BASE/agent/server.py"       "$AGENT_FILES/agent/server.py" || true
+    download_file "$RAW_BASE/agent/agent.py"        "$AGENT_FILES/agent/agent.py" || true
+    download_file "$RAW_BASE/agent/__main__.py"     "$AGENT_FILES/agent/__main__.py" || true
+    download_file "$RAW_BASE/cli/main.py"           "$AGENT_FILES/cli/main.py" || true
+    download_file "$RAW_BASE/cli/commands.py"       "$AGENT_FILES/cli/commands.py" || true
+    download_file "$RAW_BASE/cli/__init__.py"       "$AGENT_FILES/cli/__init__.py" || true
+    download_file "$RAW_BASE/config/defaults.py"    "$AGENT_FILES/config/defaults.py" || true
+    download_file "$RAW_BASE/config/__init__.py"    "$AGENT_FILES/config/__init__.py" || true
+    download_file "$RAW_BASE/db/schema.sql"         "$AGENT_FILES/db/schema.sql" || true
+    download_file "$RAW_BASE/db/__init__.py"        "$AGENT_FILES/db/__init__.py" || true
+    download_file "$RAW_BASE/pyproject.toml"        "$AGENT_FILES/pyproject.toml" || true
+    download_file "$RAW_BASE/requirements.txt"      "$AGENT_FILES/requirements.txt" || true
+    download_file "$RAW_BASE/deploy/rowbutt-agent.service" "$AGENT_FILES/deploy/rowbutt-agent.service" || true
+    download_file "$RAW_BASE/deploy/start-agent.sh"       "$AGENT_FILES/deploy/start-agent.sh" || true
 
-    mkdir -p "$TMPDIR/rowbutt-agent"
-
-    # Extract only the paths the agent needs
-    for path in \
-        "$TOPDIR/agent" \
-        "$TOPDIR/cli" \
-        "$TOPDIR/config" \
-        "$TOPDIR/db" \
-        "$TOPDIR/pyproject.toml" \
-        "$TOPDIR/requirements.txt" \
-        "$TOPDIR/deploy/rowbutt-agent.service" \
-        "$TOPDIR/deploy/start-agent.sh"; do
-        tar xzf "$TMPDIR/repo.tar.gz" -C "$TMPDIR/rowbutt-agent" \
-            --strip-components=1 "$path" 2>/dev/null || true
+    # Download agent/collectors/
+    mkdir -p "$AGENT_FILES/agent/collectors"
+    for f in __init__.py base.py llm_tokens.py system.py; do
+        download_file "$RAW_BASE/agent/collectors/$f" "$AGENT_FILES/agent/collectors/$f" || true
     done
 
-    SOURCE_DIR="$TMPDIR/rowbutt-agent"
+    SOURCE_DIR="$AGENT_FILES"
 
     # Verify we got the essential files
-    if [[ ! -d "$SOURCE_DIR/agent" ]]; then
-        fail "Agent package files not found in archive. The repo structure may have changed."
+    if [[ ! -f "$SOURCE_DIR/agent/server.py" ]]; then
+        warn "Direct download failed — trying archive fallback..."
+        mkdir -p "$TMPDIR/archive"
+        if curl -sL --connect-timeout 10 --max-time 60 \
+            "https://codeload.github.com/ridiculousostrich/rowbutt-dashboard/tar.gz/refs/heads/main" \
+            -o "$TMPDIR/repo.tar.gz"; then
+            TOPDIR=$(tar tzf "$TMPDIR/repo.tar.gz" 2>/dev/null | head -1 | cut -d/ -f1)
+            if [[ -n "$TOPDIR" ]]; then
+                mkdir -p "$TMPDIR/rowbutt-agent2"
+                for path in \
+                    "$TOPDIR/agent" \
+                    "$TOPDIR/cli" \
+                    "$TOPDIR/config" \
+                    "$TOPDIR/db" \
+                    "$TOPDIR/pyproject.toml" \
+                    "$TOPDIR/requirements.txt" \
+                    "$TOPDIR/deploy/rowbutt-agent.service" \
+                    "$TOPDIR/deploy/start-agent.sh"; do
+                    tar xzf "$TMPDIR/repo.tar.gz" -C "$TMPDIR/rowbutt-agent2" \
+                        --strip-components=1 "$path" 2>/dev/null || true
+                done
+                SOURCE_DIR="$TMPDIR/rowbutt-agent2"
+            fi
+        fi
     fi
-    ok "Agent files extracted from archive"
+
+    if [[ ! -f "$SOURCE_DIR/agent/server.py" ]]; then
+        fail "Failed to download agent files. Check network connectivity to GitHub."
+    fi
+    ok "Agent files downloaded from $REPO_URL"
 fi
 
 # ── 3. Install into permanent directory ────────────────────────────────────
