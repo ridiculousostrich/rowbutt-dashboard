@@ -50,6 +50,102 @@ def health():
     })
 
 
+@app.route("/api/v1/status")
+def agent_status_endpoint():
+    """Return current collection status — samples tracked, last poll times."""
+    try:
+        with connect_agent_db() as conn:
+            token_count = conn.execute(
+                "SELECT COUNT(*) as c FROM token_events"
+            ).fetchone()["c"]
+            sample_count = conn.execute(
+                "SELECT COUNT(*) as c FROM system_samples"
+            ).fetchone()["c"]
+            last_token = conn.execute(
+                "SELECT MAX(recorded_at) as last FROM token_events"
+            ).fetchone()["last"]
+            last_sample = conn.execute(
+                "SELECT MAX(sampled_at) as last FROM system_samples"
+            ).fetchone()["last"]
+        return jsonify({
+            "collecting": True,
+            "token_events_today": token_count,
+            "system_samples_today": sample_count,
+            "last_token_poll": last_token,
+            "last_system_poll": last_sample,
+            "samples_today": token_count + sample_count,
+        })
+    except Exception as exc:
+        return _db_error_response(str(exc))
+
+
+@app.route("/api/v1/timeseries")
+def timeseries():
+    """Return time-series data for a given metric and time window.
+
+    Query params:
+        metric (str) — one of 'tokens', 'power', 'temperature', 'memory'.
+        from (str, required) — ISO start datetime.
+        to (str, required) — ISO end datetime.
+        bucket (str, optional) — '1h' (default) or '4h'.
+    """
+    metric = request.args.get("metric", "tokens")
+    from_ts = request.args.get("from")
+    to_ts = request.args.get("to")
+    bucket = request.args.get("bucket", "1h")
+
+    if not from_ts or not to_ts:
+        return jsonify({"status": "error", "error": "Both 'from' and 'to' query params are required"}), 400
+
+    try:
+        with connect_agent_db() as conn:
+            if metric == "tokens":
+                rows = conn.execute(
+                    """SELECT recorded_at as ts, model, input_tokens, output_tokens, total_tokens
+                       FROM token_events
+                       WHERE recorded_at >= ? AND recorded_at <= ?
+                       ORDER BY recorded_at""",
+                    (from_ts, to_ts),
+                ).fetchall()
+            elif metric == "power":
+                rows = conn.execute(
+                    """SELECT sampled_at as ts, gpu_power_w
+                       FROM system_samples
+                       WHERE sampled_at >= ? AND sampled_at <= ?
+                       ORDER BY sampled_at""",
+                    (from_ts, to_ts),
+                ).fetchall()
+            elif metric == "temperature":
+                rows = conn.execute(
+                    """SELECT sampled_at as ts, temp_gpu, temp_cpu_avg, temp_cpu_max
+                       FROM system_samples
+                       WHERE sampled_at >= ? AND sampled_at <= ?
+                       ORDER BY sampled_at""",
+                    (from_ts, to_ts),
+                ).fetchall()
+            elif metric == "memory":
+                rows = conn.execute(
+                    """SELECT sampled_at as ts, mem_pct
+                       FROM system_samples
+                       WHERE sampled_at >= ? AND sampled_at <= ?
+                       ORDER BY sampled_at""",
+                    (from_ts, to_ts),
+                ).fetchall()
+            else:
+                return jsonify({"status": "error", "error": f"Unknown metric: {metric}. Supported: tokens, power, temperature, memory"}), 400
+    except Exception as exc:
+        return _db_error_response(str(exc))
+
+    return jsonify({
+        "metric": metric,
+        "from": from_ts,
+        "to": to_ts,
+        "bucket": bucket,
+        "data_points": len(rows),
+        "data": [dict(r) for r in rows],
+    })
+
+
 @app.route("/api/v1/day-summary")
 def day_summary():
     """Return aggregated token and system data for a given date.

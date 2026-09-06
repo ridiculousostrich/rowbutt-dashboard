@@ -57,4 +57,4 @@ COLLECT_GPU = True
 # ── Agent Identity ─────────────────────────────────────────
 AGENT_HOSTNAME = os.environ.get("ROWBUTT_AGENT_HOSTNAME",
                                 os.uname().nodename)
-AGENT_VERSION = "0.1.0"
+AGENT_VERSION = "0.1.1"

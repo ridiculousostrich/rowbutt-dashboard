@@ -817,7 +817,7 @@ Future: mDNS/SSDP auto-discovery.
 
 ---
 
-## 9. Work Orders (Cross-Session Problems)
+## 10. Work Orders (Cross-Session Problems)
 
 These are known issues, decisions, or implementation gaps that will need to be resolved in dedicated sessions. They arise from pool decisions, stubs left for later phases, or discoveries made during development.
 
